@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Arizona ZIP Territories — Latest</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  html, body, #map { height: 100%; margin: 0; padding: 0; }
+  .legend { background: white; padding: 10px; line-height: 1.4; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-size: 12px; max-width: 420px; overflow-y: auto; max-height: 60vh; }
+  .legend .row { display: flex; align-items: center; margin-bottom: 6px; }
+  .legend .swatch { width: 14px; height: 14px; border-radius: 3px; margin-right: 8px; border: 1px solid #00000022; }
+  .region-label { background: rgba(255,255,255,0.85); padding: 2px 6px; border-radius: 6px; border: 1px solid #00000022; font-weight: 600; white-space: nowrap; }
+  .topbar { position: absolute; z-index: 9999; top: 10px; left: 10px; background: rgba(255,255,255,0.95); padding: 8px 10px; border-radius: 8px; border: 1px solid #00000022; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="topbar">
+  <div><strong>ZIP boundaries source:</strong> Arizona (with CDN fallbacks)</div>
+  <button id="retry">Retry downloads</button>
+  <label style="margin-left:8px; cursor:pointer;">
+    <input type="file" id="fileInput" accept=".json,.geojson" style="display:none" />
+    <span style="text-decoration:underline;">Or load GeoJSON file…</span>
+  </label>
+  <div class="status" id="status">Loading…</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+<script>
+const ZIP_TO_TERRITORY = {"85033":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85035":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85037":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85303":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85305":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85307":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85309":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85322":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85323":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85326":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85335":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85338":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85340":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85345":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85351":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85353":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85354":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85355":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85361":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85363":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85373":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85374":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85375":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85379":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85381":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85382":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85387":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85388":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85392":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85395":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85396":"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor","85003":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85004":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85006":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85007":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85008":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85009":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85012":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85013":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85014":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85015":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85016":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85017":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85018":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85019":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85020":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85021":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85022":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85023":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85024":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85027":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85028":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85029":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85031":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85032":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85043":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85050":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85051":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85053":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85054":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85083":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85085":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85086":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85087":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85144":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85201":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85203":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85213":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85250":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85251":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85253":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85254":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85255":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85256":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85257":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85258":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85259":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85260":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85262":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85263":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85264":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85266":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85268":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85269":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85288":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85301":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85302":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85304":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85306":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85308":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85310":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85318":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85331":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85377":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85378":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85383":"AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub","85034":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85040":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85041":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85042":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85044":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85045":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85048":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85118":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85119":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85120":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85121":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85122":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85128":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85131":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85132":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85138":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85139":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85140":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85142":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85143":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85147":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85172":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85193":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85194":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85202":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85204":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85205":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85206":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85207":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85208":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85209":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85210":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85212":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85215":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85224":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85225":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85226":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85233":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85234":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85236":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85248":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85249":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85274":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85280":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85281":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85282":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85283":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85284":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85285":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85286":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85295":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85296":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85297":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85298":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier","85339":"AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier"};
+const TERRITORY_TO_COLOR = {"AZ-01: West Valley \u2013 Manufacturing & Logistics Corridor":"#E69F00","AZ-03: Southeast Pinal \u2013 Advanced Manufacturing Frontier":"#56B4E9","AZ-02: Central Phoenix \u2013 Tech & Aerospace Hub":"#009E73"};
+const CANDIDATE_URLS = [
+  "https://cdn.jsdelivr.net/gh/OpenDataDE/State-zip-code-GeoJSON@master/az_arizona_zip_codes_geo.min.json",
+  "https://raw.githubusercontent.com/OpenDataDE/State-zip-code-GeoJSON/master/az_arizona_zip_codes_geo.min.json",
+  "https://unpkg.com/@opendatade/state-zip-code-geojson@1.0.0/az_arizona_zip_codes_geo.min.json"
+];
+
+const statusEl = document.getElementById('status');
+const map = L.map('map', { preferCanvas: true }).setView([33.45, -112.07], 9);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const zipLayer = L.geoJSON(null, {
+  style: function(feature) {
+    const zip = feature.properties.ZCTA5CE10 || feature.properties.ZCTA5CE || feature.properties.ZCTA5 || feature.properties.GEOID10;
+    const terr = ZIP_TO_TERRITORY[zip];
+    const color = terr ? TERRITORY_TO_COLOR[terr] : '#cccccc';
+    return { color: '#333333', weight: 0.4, fillColor: color, fillOpacity: terr ? 0.48 : 0.0 };
+  },
+  onEachFeature: function(feature, layer) {
+    const zip = feature.properties.ZCTA5CE10 || feature.properties.ZCTA5CE || feature.properties.ZCTA5 || feature.properties.GEOID10;
+    const terr = ZIP_TO_TERRITORY[zip];
+    if (terr) layer.bindPopup('<strong>'+zip+'</strong><br/>'+terr);
+  }
+});
+
+const outlineLayer = L.geoJSON(null, {
+  style: function(feature) {
+    const t = feature.properties && feature.properties.territory;
+    const color = t && TERRITORY_TO_COLOR[t] ? TERRITORY_TO_COLOR[t] : '#000';
+    return { color: color, weight: 3, fill: false, opacity: 0.95 };
+  }
+}).addTo(map);
+
+const labelLayer = L.layerGroup().addTo(map);
+
+function addLegend() {
+  const legend = L.control({position: 'bottomright'});
+  legend.onAdd = function (map) {
+    const div = L.DomUtil.create('div', 'legend');
+    div.innerHTML = '<div style="font-weight:600;margin-bottom:6px;">Arizona ZIP Territories</div>';
+    const entries = Object.entries(TERRITORY_TO_COLOR);
+    entries.forEach(function(ent){
+      var r=ent[0], c=ent[1];
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = '<span class="swatch" style="background:'+c+'"></span> <span>'+r+'</span>';
+      div.appendChild(row);
+    });
+    return div;
+  };
+  legend.addTo(map);
+
+  L.control.layers(null, {
+    'ZIP Polygons': zipLayer,
+    'Territory Outlines': outlineLayer,
+    'Territory Labels': labelLayer
+  }, { collapsed: true }).addTo(map);
+}
+
+function renderFromGeo(geo) {
+  const wanted = new Set(Object.keys(ZIP_TO_TERRITORY));
+  const filtered = { type:'FeatureCollection', features: [] };
+  for (const f of geo.features) {
+    const z = (f.properties.ZCTA5CE10 || f.properties.ZCTA5CE || f.properties.ZCTA5 || f.properties.GEOID10 || '').toString();
+    if (wanted.has(z)) filtered.features.push(f);
+  }
+  zipLayer.addData(filtered).addTo(map);
+  try { map.fitBounds(zipLayer.getBounds(), { padding: [20,20] }); } catch(e) {}
+
+  const byTerr = new Map();
+  for (const f of filtered.features) {
+    const z = (f.properties.ZCTA5CE10 || f.properties.ZCTA5CE || f.properties.ZCTA5 || f.properties.GEOID10 || '').toString();
+    const terr = ZIP_TO_TERRITORY[z];
+    if (!byTerr.has(terr)) byTerr.set(terr, []);
+    byTerr.get(terr).push(f);
+  }
+
+  byTerr.forEach(function(features, terr){
+    let unioned = null;
+    try {
+      unioned = features.reduce(function(a, f, i){
+        if (i === 0) return f;
+        try { return turf.union(a, f) || a; } catch(e){ return a; }
+      }, null);
+    } catch(e){ unioned = null; }
+
+    if (!unioned) unioned = turf.combine({ type:'FeatureCollection', features: features });
+
+    if (Array.isArray(unioned.features)) {
+      for (const uf of unioned.features) {
+        uf.properties = Object.assign({}, uf.properties, { territory: terr });
+        outlineLayer.addData(uf);
+      }
+    } else if (unioned) {
+      unioned.properties = Object.assign({}, unioned.properties || {}, { territory: terr });
+      outlineLayer.addData(unioned);
+    }
+
+    try {
+      const c = turf.center(unioned);
+      if (c && c.geometry && c.geometry.coordinates) {
+        const lg = c.geometry.coordinates[0], lt = c.geometry.coordinates[1];
+        const di = L.divIcon({ className: 'region-label', html: terr, iconSize: null });
+        L.marker([lt, lg], { icon: di }).addTo(labelLayer);
+      }
+    } catch(e){}
+  });
+
+  addLegend();
+}
+
+async function tryFetch(url) {
+  statusEl.textContent = 'Trying: ' + url;
+  const resp = await fetch(url, { cache: 'force-cache' });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp.json();
+}
+
+async function loadWithFallbacks() {
+  for (const u of CANDIDATE_URLS) {
+    try {
+      const geo = await tryFetch(u);
+      statusEl.textContent = 'Loaded: ' + u;
+      renderFromGeo(geo);
+      return true;
+    } catch(e) {
+      console.warn('Failed URL:', u, e);
+    }
+  }
+  statusEl.textContent = 'All downloads failed. You can load a local GeoJSON file.';
+  alert('Could not load AZ ZIP boundaries. Use the "Or load GeoJSON file…" option at the top-left.');
+  return false;
+}
+
+document.getElementById('retry').addEventListener('click', function(){
+  zipLayer.clearLayers(); outlineLayer.clearLayers(); labelLayer.clearLayers(); loadWithFallbacks();
+});
+
+document.getElementById('fileInput').addEventListener('change', function(ev){
+  const file = ev.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const geo = JSON.parse(e.target.result);
+      zipLayer.clearLayers(); outlineLayer.clearLayers(); labelLayer.clearLayers();
+      statusEl.textContent = 'Loaded local file: ' + file.name;
+      renderFromGeo(geo);
+    } catch(err) { alert('Could not parse that file as GeoJSON.'); }
+  };
+  reader.readAsText(file);
+});
+loadWithFallbacks();
+</script>
+</body>
+</html>
